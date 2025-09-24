@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comparador Cargas vs Transferencias</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Comparador: Cargas vs Transferencias</h1>
+    <p>Pegá el texto del <strong>panel de cargas</strong> y de la <strong>billetera</strong>. Luego presioná <em>Analizar</em>.</p>
+  </header>
+
+  <main class="grid">
+    <!-- Panel de Cargas -->
+    <section>
+      <h2>Panel de Cargas</h2>
+      <textarea id="cargasInput" placeholder="Ejemplo:
+2025-09-23 21:00:06 a1claudiollan33 Carga 3.000,00
+2025-09-23 21:07:10 userX Carga 2.350,00
+2025-09-23 18:10:50 a1nancylop51 Bonificacion -5.400,00"></textarea>
+
+      <div class="hint">
+        • Las <code>Bonificaciones</code> se listan en amarillo, no cuentan como carga, no se comparan y descuentan x2 el total.<br/>
+        • Una carga asociada a bonificación (mismo usuario + momento) no se muestra en “Cargas SIN transferencia equivalente”.
+      </div>
+
+      <!-- Buscador de Cargas -->
+      <div class="searchRow">
+        <label for="filterCargas" class="searchLabel">Buscar por monto (cargas):</label>
+        <input id="filterCargas" type="text" inputmode="numeric" placeholder="Ej: 2000 o 2.000,00" />
+        <span class="pill" id="filterCargasCount">0 coincidencias</span>
+      </div>
+      <div class="filterList" id="filterCargasList"></div>
+    </section>
+
+    <!-- Transferencias -->
+    <section>
+      <h2>Transferencias de Billetera</h2>
+      <textarea id="transfInput" placeholder="Ejemplo (RECA/Telepago):
+Fecha Movimiento Débito Crédito Saldo Parcial
+23/09/2025 ... 0,00 6.000,00 1.837.777,27
+5617            Astor Smoulenar                00:58"></textarea>
+      <div class="hint">
+        Auto-detección RECA/Telepago. Ignora <code>Saldo</code> y 0,00. En Telepago toma el primer número de la línea si hay hora HH:MM.
+      </div>
+
+      <!-- Buscador de Transferencias -->
+      <div class="searchRow">
+        <label for="filterTransf" class="searchLabel">Buscar por monto (transferencias):</label>
+        <input id="filterTransf" type="text" inputmode="numeric" placeholder="Ej: 2000 o 2.000" />
+        <span class="pill" id="filterTransfCount">0 coincidencias</span>
+      </div>
+      <div class="filterList" id="filterTransfList"></div>
+    </section>
+  </main>
+
+  <section class="actions">
+    <button id="analyzeBtn">Analizar</button>
+    <button id="exportBtn" class="secondary">Exportar reporte (CSV para Excel)</button>
+    <button id="clearBtn" class="secondary subtle">Limpiar</button>
+  </section>
+
+  <section id="results" class="results hidden">
+    <h2>Resultados</h2>
+
+    <div class="cards">
+      <div class="card">
+        <h3>Resumen</h3>
+        <ul id="summaryList"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Bonificaciones detectadas</h3>
+        <table>
+          <thead>
+          <tr>
+            <th>Monto</th>
+            <th>Fuente (recorte de línea)</th>
+          </tr>
+          </thead>
+          <tbody id="bonifBody"></tbody>
+        </table>
+        <div class="note" id="bonifNote"></div>
+      </div>
+
+      <div class="card">
+        <h3>Fichas cargadas sin transferencia acreditada</h3>
+        <table>
+          <thead><tr><th>Monto</th><th>Faltan (veces)</th></tr></thead>
+          <tbody id="faltantesBody"></tbody>
+        </table>
+        <div class="note" id="faltantesNote"></div>
+      </div>
+
+      <div class="card">
+        <h3>Plata acreditada pero no cargada en fichas</h3>
+        <table>
+          <thead><tr><th>Monto</th><th>Sobran (veces)</th></tr></thead>
+          <tbody id="sobrantesBody"></tbody>
+        </table>
+        <div class="note" id="sobrantesNote"></div>
+      </div>
+
+      <div class="card">
+        <h3>Coincidencias (monto y cantidad)</h3>
+        <table>
+          <thead><tr><th>Monto</th><th>En Cargas</th><th>En Transferencias</th></tr></thead>
+          <tbody id="coincidenBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <label class="tiny">
+      <input type="checkbox" id="roundPesos" />
+      Redondear centavos (comparar y BUSCAR por pesos enteros)
+    </label>
+    <span class="tiny">• Formato ARS: miles con punto, centavos con coma (<code>3.000,00</code>).</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
+
+

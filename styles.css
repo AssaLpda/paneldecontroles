@@ -1,0 +1,74 @@
+:root{
+  --bg:#0f1115; --panel:#161a22; --muted:#9aa3b2; --text:#e6e6e6; --accent:#4caf50; --accent2:#607d8b;
+  --bad:#ff6b6b; --ok:#5ad18b; --card:#1b2130; --border:#2a3242; --yellow:#ffeb3b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:system-ui,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
+  background:var(--bg); color:var(--text);
+}
+header{padding:24px 20px 8px}
+h1{margin:0 0 6px 0; font-size:22px}
+h2{margin:0 0 10px 0; font-size:18px}
+main.grid{
+  display:grid; gap:16px; padding:0 20px 10px; grid-template-columns:1fr; 
+}
+@media(min-width:900px){ main.grid{ grid-template-columns:1fr 1fr; } }
+section{
+  background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px;
+}
+textarea{
+  width:100%; min-height:180px; resize:vertical; padding:12px; background:#0c0f14; color:var(--text);
+  border:1px solid var(--border); border-radius:10px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.hint{color:var(--muted); font-size:12px; margin-top:8px}
+.actions{display:flex; gap:10px; padding:8px 20px 0; flex-wrap:wrap}
+button{
+  background:var(--accent); color:#001b06; padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700;
+}
+button.secondary{ background:var(--accent2); color:#e9f1f5; }
+button.subtle{ opacity:.9 }
+button:active{ transform:translateY(1px) }
+.results{padding:14px 20px 24px}
+.hidden{display:none}
+.cards{display:grid; gap:16px}
+@media(min-width:1100px){
+  .cards{grid-template-columns:1fr 1fr}
+  .cards>.card:nth-child(1){grid-column:1/-1}
+}
+.card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px}
+table{width:100%; border-collapse:collapse; margin-top:8px}
+th, td{border-bottom:1px solid var(--border); padding:8px 6px; text-align:left; font-variant-numeric:tabular-nums}
+th{color:#b7c2d0}
+.note{margin-top:8px; color:var(--muted); font-size:12px}
+ul{margin:8px 0 0 18px}
+.tiny{font-size:12px; color:var(--muted)}
+.bad{color:var(--bad)}
+.ok{color:var(--ok)}
+.bonif{ color: var(--yellow); font-weight: 700; }
+
+/* --- Buscador por monto --- */
+.searchRow{
+  display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;
+}
+.searchLabel{ font-size:12px; color:var(--muted) }
+.searchRow input{
+  background:#0c0f14; color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:8px 10px; min-width:170px; font-family:ui-monospace,monospace;
+}
+.pill{
+  background:rgba(96,125,139,.25); color:#e9f1f5; border:1px solid var(--border);
+  border-radius:999px; padding:4px 10px; font-size:12px;
+}
+.filterList{
+  margin-top:6px; background:#0c0f14; border:1px solid var(--border); border-radius:10px;
+  max-height:180px; overflow:auto; padding:8px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height:1.35; color:#dfe6ef;
+}
+.filterList .nores{ color:var(--muted) }
+.filterList .err{ color:var(--bad) }
+
+
+
+
+
