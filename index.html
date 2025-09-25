@@ -62,6 +62,51 @@ Fecha Movimiento Débito Crédito Saldo Parcial
     <button id="clearBtn" class="secondary subtle">Limpiar</button>
   </section>
 
+  <!-- Búsqueda avanzada -->
+  <section class="results" id="advSearchSection">
+    <div class="cards">
+      <div class="card">
+        <h3>Búsqueda avanzada por persona</h3>
+        <div class="searchRow">
+          <label for="advQuery" class="searchLabel">Usuario o Nombre:</label>
+          <input id="advQuery" type="text" placeholder="Ej: dpena / aencina / 'Claudia Diaz' / 'Angel Encina'"/>
+          <button id="btnAdvSearch" class="secondary">Buscar</button>
+        </div>
+        <div class="hint tiny">
+          Tips: podés escribir usuario o nombre real. Detecta similitudes (p.ej. <code>dpena</code> ↔ <code>Diego Pena</code>, <code>a1maxi81</code> ↔ <code>Maximiliano/Maximo</code>).
+        </div>
+        <div id="advResults" class="note" style="margin-top:8px;"></div>
+      </div>
+
+      <!-- Mapeos guardados -->
+      <div class="card" id="savedMapSection">
+        <h3>Mapeos guardados (usuario ↔ titular)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Titular</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="savedMapBody">
+            <!-- Se completa por JS con filas:
+            <tr>
+              <td><code>dpena</code></td>
+              <td>Diego Pena</td>
+              <td><button class="secondary subtle" data-del="dpena||Diego Pena">Eliminar</button></td>
+            </tr>
+            -->
+          </tbody>
+        </table>
+        <div class="actions" style="margin-top:8px;">
+          <button id="clearSavedMapBtn" class="secondary subtle">Borrar todos</button>
+        </div>
+        <div class="note">Los mapeos se guardan en tu navegador (localStorage).</div>
+      </div>
+    </div>
+  </section>
+
   <section id="results" class="results hidden">
     <h2>Resultados</h2>
 
@@ -75,10 +120,7 @@ Fecha Movimiento Débito Crédito Saldo Parcial
         <h3>Bonificaciones detectadas</h3>
         <table>
           <thead>
-          <tr>
-            <th>Monto</th>
-            <th>Fuente (recorte de línea)</th>
-          </tr>
+          <tr><th>Monto</th><th>Fuente (recorte de línea)</th></tr>
           </thead>
           <tbody id="bonifBody"></tbody>
         </table>
@@ -110,6 +152,16 @@ Fecha Movimiento Débito Crédito Saldo Parcial
           <tbody id="coincidenBody"></tbody>
         </table>
       </div>
+
+      <!-- Nueva tarjeta -->
+      <div class="card">
+        <h3>Comparación por monto (conteo)</h3>
+        <table>
+          <thead><tr><th>Monto</th><th># Cargas</th><th># Transferencias</th><th>Estado</th></tr></thead>
+          <tbody id="cmpMontoBody"></tbody>
+        </table>
+        <div class="note">Hacé clic en una fila para ver el detalle.</div>
+      </div>
     </div>
   </section>
 
@@ -121,9 +173,28 @@ Fecha Movimiento Débito Crédito Saldo Parcial
     <span class="tiny">• Formato ARS: miles con punto, centavos con coma (<code>3.000,00</code>).</span>
   </footer>
 
+  <!-- Modal -->
+  <div id="modalBackdrop" class="modalBackdrop hidden">
+    <div class="modalCard">
+      <div class="modalHead">
+        <h3 id="modalTitle">Detalle</h3>
+        <button id="modalClose" class="secondary">Cerrar</button>
+      </div>
+      <div class="modalBody" id="modalBody"></div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
+
+
+
+
+
+
+
+
 
 
 
