@@ -69,40 +69,10 @@ Fecha Movimiento Débito Crédito Saldo Parcial
         <h3>Búsqueda avanzada por persona</h3>
         <div class="searchRow">
           <label for="advQuery" class="searchLabel">Usuario o Nombre:</label>
-          <input id="advQuery" type="text" placeholder="Ej: dpena / aencina / 'Claudia Diaz' / 'Angel Encina'"/>
+          <input id="advQuery" type="text" placeholder="Ej: a1claudiaz23 o Claudia Diaz"/>
           <button id="btnAdvSearch" class="secondary">Buscar</button>
         </div>
-        <div class="hint tiny">
-          Tips: podés escribir usuario o nombre real. Detecta similitudes (p.ej. <code>dpena</code> ↔ <code>Diego Pena</code>, <code>a1maxi81</code> ↔ <code>Maximiliano/Maximo</code>).
-        </div>
-        <div id="advResults" class="note" style="margin-top:8px;"></div>
-      </div>
-
-      <!-- Mapeos guardados -->
-      <div class="card" id="savedMapSection">
-        <h3>Mapeos guardados (usuario ↔ titular)</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Usuario</th>
-              <th>Titular</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="savedMapBody">
-            <!-- Se completa por JS con filas:
-            <tr>
-              <td><code>dpena</code></td>
-              <td>Diego Pena</td>
-              <td><button class="secondary subtle" data-del="dpena||Diego Pena">Eliminar</button></td>
-            </tr>
-            -->
-          </tbody>
-        </table>
-        <div class="actions" style="margin-top:8px;">
-          <button id="clearSavedMapBtn" class="secondary subtle">Borrar todos</button>
-        </div>
-        <div class="note">Los mapeos se guardan en tu navegador (localStorage).</div>
+        <div id="advResults" class="note"></div>
       </div>
     </div>
   </section>
@@ -145,24 +115,37 @@ Fecha Movimiento Débito Crédito Saldo Parcial
         <div class="note" id="sobrantesNote"></div>
       </div>
 
-      <div class="card">
-        <h3>Coincidencias (monto y cantidad)</h3>
-        <table>
-          <thead><tr><th>Monto</th><th>En Cargas</th><th>En Transferencias</th></tr></thead>
-          <tbody id="coincidenBody"></tbody>
-        </table>
-      </div>
+     <!-- Tarjeta única de comparación -->
+<div class="card">
+  <h3>Resumen total de Cargas/Transferencias</h3>
+  <!-- Leyenda con chips -->
+<div class="tiny" style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap">
+  <span class="stateChip stateGreen">
+    Verde: Misma cantidad de cargas (hechas) y transferencias (recibidas)
+  </span>
+  <span class="stateChip stateRed">
+    Rojo: Se hicieron más cargas que transferencias recibidas por ese monto (Faltan transferencias)
+  </span>
+  <span class="stateChip stateYellow">
+    Amarillo: Se recibieron más transferencias de lo que se cargó (plata acreditada y fichas no cargadas al usuario)
+  </span>
+</div>
 
-      <!-- Nueva tarjeta -->
-      <div class="card">
-        <h3>Comparación por monto (conteo)</h3>
-        <table>
-          <thead><tr><th>Monto</th><th># Cargas</th><th># Transferencias</th><th>Estado</th></tr></thead>
-          <tbody id="cmpMontoBody"></tbody>
-        </table>
-        <div class="note">Hacé clic en una fila para ver el detalle.</div>
-      </div>
-    </div>
+  </div>
+</div>
+  <table>
+    <thead>
+      <tr><th>Monto</th><th># Cargas</th><th># Transferencias</th><th>Estado</th></tr>
+    </thead>
+  </table>
+  <table>
+    <tbody id="cmpMontoBody"></tbody>
+  </table>
+
+  <div class="note">Hacé clic en una fila para ver el detalle.</div>
+
+  
+
   </section>
 
   <footer>
@@ -187,6 +170,7 @@ Fecha Movimiento Débito Crédito Saldo Parcial
   <script src="app.js"></script>
 </body>
 </html>
+
 
 
 
