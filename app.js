@@ -11,11 +11,15 @@ let state = {
   roundPesos: false,
   cargas: [],           // {user, amountCents, date, time, raw, ts}
   bonifs: [],           // {user, amountCents, date, time, raw, ts}
-  transf: [],           // {amountCents, nameCandidate, date, time, raw, ts}
+  transf: [],           // {amountCents, nameCandidate, date, time, raw, ts, source:'telepago'|'galicia'}
   retiros: [],          // {source:'carga-descarga'|'transferencia-debito', who, amountCents, date, time, raw, ts}
   cargasEmparejadasPorBonif: new Set(), // idx de cargas excluidas por bonif
   cmpMonto: []          // [{amountCents, cntCargas, cntTransf, estado}]
 };
+
+/* ==== Galicia buffer / flags ==== */
+let GALICIA_BUFFER = [];                 // [{date,name,amountStr,amountCents}]
+let INCLUDE_GALICIA_IN_ANALYSIS = false; // incluir en el próximo "Analizar" sin pegar al textarea
 
 /************ Utils ************/
 const $ = (sel) => document.querySelector(sel);
@@ -248,8 +252,14 @@ function parseTransferencias(text, roundPesos=false){
   const arr = [];
   const ls = lines(text);
   for (const raw0 of ls){
-    const raw = (raw0||"").trim();
+    let raw = (raw0||"").trim();
     if (!raw) continue;
+
+    // 🔶 detectar marcador manual para Galicia (#GALICIA) aunque venga en el textarea
+    const isGaliciaMarked = /(^|\s)#GALICIA(\s|$)/i.test(raw);
+    if (isGaliciaMarked){
+      raw = raw.replace(/(^|\s)#GALICIA(\s|$)/ig, " ").replace(/\s+/g," ").trim(); // limpiamos el marcador para mostrar
+    }
 
     const dateISO = extractAnyDateToISO(raw);
     const time = extractTime(raw);
@@ -329,7 +339,9 @@ function parseTransferencias(text, roundPesos=false){
       date: dateISO || null,
       time: time || null,
       raw,
-      ts
+      ts,
+      // 🔶 si tiene marcador, lo tratamos como Galicia; si no, Telepago/RECA
+      source: isGaliciaMarked ? 'galicia' : 'telepago'
     });
   }
   return arr;
@@ -432,9 +444,18 @@ function getCargasConsideradas(){
 /************ Render ************/
 function renderResumen(){
   const cargasConsideradas = getCargasConsideradas();
+
   const totalC = cargasConsideradas.reduce((s,c)=>s+c.amountCents,0);
   const totalB = state.bonifs.reduce((s,b)=>s+(b.amountCents*2),0);
-  const totalT = state.transf.reduce((s,t)=>s+t.amountCents,0);
+
+  // separar Telepago/RECA vs Galicia
+  const tele = state.transf.filter(t=>t.source!=="galicia");
+  const gali = state.transf.filter(t=>t.source==="galicia");
+
+  const totalT_Tele = tele.reduce((s,t)=>s+t.amountCents,0);
+  const totalT_Gal  = gali.reduce((s,t)=>s+t.amountCents,0);
+  const totalT = totalT_Tele + totalT_Gal;
+
   const totalR = state.retiros.reduce((s,r)=>s+r.amountCents,0);
   const dif = (totalC - totalB) - totalT;
   const difClass = dif >= 0 ? 'ok' : 'bad';
@@ -444,7 +465,9 @@ function renderResumen(){
   ul.innerHTML = `
     <li>💳 Cargas: <strong>${moneyFmt(totalC)}</strong> <span class="tiny">(${cargasConsideradas.length})</span></li>
     <li class="bonif">🎁 Ajuste Bonif (x2): −${moneyFmt(totalB)} <span class="tiny">(${state.bonifs.length})</span></li>
-    <li>🏦 Transferencias: <strong>${moneyFmt(totalT)}</strong> <span class="tiny">(${state.transf.length})</span></li>
+    <li>🏦 Transferencias (Telepago/RECA): <strong>${moneyFmt(totalT_Tele)}</strong> <span class="tiny">(${tele.length})</span></li>
+    <li>🏦 Transferencias <strong style="color:#ffa726">Galicia</strong>: <strong style="color:#ffa726">${moneyFmt(totalT_Gal)}</strong> <span class="tiny" style="color:#ffa726">(${gali.length})</span></li>
+    <li>🏦 Transferencias Totales: <strong>${moneyFmt(totalT)}</strong> <span class="tiny">(${state.transf.length})</span></li>
     <li>💸 Retiros: <strong class="bad">−${moneyFmt(totalR)}</strong> <span class="tiny">(${state.retiros.length})</span> — <a href="#" id="openRetirosLink">ver detalle</a></li>
     <li>${difLabel}: <strong class="${difClass}">${moneyFmt(dif)}</strong></li>
   `;
@@ -570,7 +593,7 @@ function openDetalleMonto(amountCents){
   `).join("") : `<tr><td colspan="4" class="tiny">Sin cargas en este monto.</td></tr>`;
 
   const tRows = tSel.length ? tSel.map(t=>`
-    <tr><td>${t.nameCandidate||'(sin nombre)'}</td><td>${t.date||''} ${t.time||''}</td><td>${moneyFmt(t.amountCents)}</td><td><span class="tiny">${t.raw}</span></td></tr>
+    <tr><td>${t.nameCandidate||'(sin nombre)'}</td><td>${t.date||''} ${t.time||''}</td><td>${moneyFmt(t.amountCents)}</td><td>${t.source==='galicia' ? '<span class="tiny" style="color:#ffa726">Galicia</span>' : '<span class="tiny">Telepago/RECA</span>'} — <span class="tiny">${t.raw}</span></td></tr>
   `).join("") : `<tr><td colspan="4" class="tiny">Sin transferencias en este monto.</td></tr>`;
 
   titleEl.textContent = `Detalle — ${moneyFmt(amountCents)}`;
@@ -585,7 +608,7 @@ function openDetalleMonto(amountCents){
     <div class="card" style="background:var(--panel); margin-top:12px;">
       <h3 style="margin-top:0">Transferencias (${tSel.length})</h3>
       <table>
-        <thead><tr><th>Nombre probable</th><th>Fecha/Hora</th><th>Monto</th><th>Fuente</th></tr></thead>
+        <thead><tr><th>Titular</th><th>Fecha/Hora</th><th>Monto</th><th>Origen / Fuente</th></tr></thead>
         <tbody>${tRows}</tbody>
       </table>
     </div>
@@ -603,7 +626,7 @@ function openRetirosModal(){
   const rows = r.length ? r.map(x=>`
     <tr>
       <td>${x.who || '(sin nombre/usuario)'}</td>
-      <td>${x.source==='carga-descarga'?'Descarga (Cargas)':'Débito (Billetera)'}</td>
+      <td>${x.source==='carga-descarga'?'Descarga (Cargas)': x.source==='transferencia-debito' ? 'Débito (Billetera)' : x.source||'-'}</td>
       <td>${x.date||''} ${x.time||''}</td>
       <td>- ${moneyFmt(x.amountCents)}</td>
       <td><span class="tiny">${x.raw}</span></td>
@@ -631,13 +654,10 @@ function cleanUsername(u){
   if (!u) return "";
   let s = stripDiacritics(u).toLowerCase();
   s = s.replace(/[^a-z0-9]+/g,"");
-  // elimina repeticiones de letra+digitos al inicio (A1, X7, z9, etc.)
   s = s.replace(/^([a-z]\d+)+/i,"");
-  // quita dígitos restantes
   s = s.replace(/\d+/g,"");
   return s;
 }
-// Separa nombre real en tokens (sin tildes), detecta nombre/s y apellido/s
 function splitRealName(name){
   const stop = new Set(["de","del","la","las","los","y"]);
   const raw = normSp(name).split(" ").filter(Boolean);
@@ -647,37 +667,31 @@ function splitRealName(name){
   const initials = first ? first[0] : "";
   return { tokens:toks, first, last, initials, fullNoSpace: toks.join("") };
 }
-// Heurística de score entre username y nombre real
 function scoreUserVsName(user, name){
   const u = cleanUsername(user);
   const {first, last, initials, fullNoSpace} = splitRealName(name);
 
   if (!u || (!first && !last)) return 0;
 
-  // similitudes base
-  let sFull = similarity(u, fullNoSpace);      // e.g. "miguelriv" ~ "miguelrivero"
-  let sLast = last ? similarity(u, last) : 0;  // e.g. "aencina" ~ "encina"
-  let sFirst= first? similarity(u, first): 0;  // e.g. "maxi" ~ "maximiliano"
+  let sFull = similarity(u, fullNoSpace);
+  let sLast = last ? similarity(u, last) : 0;
+  let sFirst= first? similarity(u, first): 0;
 
-  // patrón inicial+apellido: dpena = D. Pena ; aencina = A. Encina
   let sInitLast = 0;
   if (last){
     const patt = initials + last;
     sInitLast = similarity(u, patt);
-    // boost si u arranca como inicial+apellido
     if (u.startsWith(initials + last.slice(0, Math.max(3, Math.min(5,last.length))))) {
       sInitLast += 0.15;
     }
   }
 
-  // Boost por substring significativo (>=4)
   let sSub = 0;
   const nameAll = first + last;
   if (u.length>=4 && (nameAll.includes(u) || u.includes(last.slice(0,4)) || (first && u.includes(first.slice(0,4))))) {
     sSub = 0.1;
   }
 
-  // Prefijos fuertes (3+)
   let sPref = 0;
   if (first && u.startsWith(first.slice(0,4))) sPref += 0.05;
   if (last  && u.startsWith(last.slice(0,4)))  sPref += 0.05;
@@ -686,55 +700,38 @@ function scoreUserVsName(user, name){
   if (s > 1) s = 1;
   return s;
 }
-
-// Agrega resumen de montos y cantidades para listas de items
 function summarize(list, kind){
   const sum = list.reduce((s,x)=>s+x.amountCents,0);
-  return {
-    count: list.length,
-    totalCents: sum,
-    label: `${kind}: ${list.length} — ${moneyFmt(sum)}`
-  };
+  return { count: list.length, totalCents: sum, label: `${kind}: ${list.length} — ${moneyFmt(sum)}` };
 }
-
-// Busca por persona (usa query que puede ser usuario o nombre real)
 function advPersonSearch(queryRaw){
   const q = (queryRaw||"").trim();
-  if (!q) return {
-    pairs:[], usersFound:[], namesFound:[],
-    resumenUsers:null, resumenNames:null
-  };
+  if (!q) return { pairs:[], usersFound:[], namesFound:[], resumenUsers:null, resumenNames:null };
 
   const cargasConsideradas = getCargasConsideradas();
 
   const allUsers = Array.from(new Set(cargasConsideradas.map(c=>c.user).filter(Boolean)));
   const allNames = Array.from(new Set(state.transf.map(t=>t.nameCandidate).filter(Boolean)));
 
-  // candidatos por similitud directa con query
   const userRanks = allUsers.map(u=>{
-    // comparar query con user crudo y con user limpio
     const s1 = similarity(q, u);
     const s2 = similarity(q, cleanUsername(u));
     return {u, score: Math.max(s1, s2)};
-  }).filter(x=> x.score >= 0.35) // umbral bajo para no perder candidatos
-    .sort((a,b)=> b.score - a.score);
+  }).filter(x=> x.score >= 0.35).sort((a,b)=> b.score - a.score);
 
   const nameRanks = allNames.map(n=>{
-    // comparar query con nombre y sus normalizaciones
     const {fullNoSpace} = splitRealName(n);
     const s1 = similarity(q, n);
     const s2 = similarity(q, fullNoSpace);
     const s3 = similarity(normSp(q), normSp(n));
     return {n, score: Math.max(s1,s2,s3)};
-  }).filter(x=> x.score >= 0.35)
-    .sort((a,b)=> b.score - a.score);
+  }).filter(x=> x.score >= 0.35).sort((a,b)=> b.score - a.score);
 
   const usersFound = userRanks.map(x=>x.u);
   const namesFound = nameRanks.map(x=>x.n);
 
-  // Generar emparejamientos probables user<->name con scoreUserVsName
-  const PAIR_MIN = 0.62;       // umbral general
-  const PAIR_FALLBACK = 0.52;  // si no hay nada fuerte, mostrar candidatos tibios
+  const PAIR_MIN = 0.62;
+  const PAIR_FALLBACK = 0.52;
 
   const pairs = [];
   const considerUsers = usersFound.length ? usersFound : allUsers;
@@ -747,18 +744,14 @@ function advPersonSearch(queryRaw){
       if (s >= PAIR_MIN) best.push({user:u, name:n, score:s});
     }
     if (!best.length){
-      // mirar coincidencias “tibias” si no hubo fuertes
       for (const n of considerNames){
         const s = scoreUserVsName(u,n);
         if (s >= PAIR_FALLBACK) best.push({user:u, name:n, score:s});
       }
     }
     best.sort((a,b)=> b.score - a.score);
-    // top 3 por usuario
     pairs.push(...best.slice(0,3));
   }
-
-  // deduplicar pares
   const seen = new Set();
   const pairsUnique = [];
   for (const p of pairs){
@@ -767,35 +760,19 @@ function advPersonSearch(queryRaw){
     seen.add(k);
     pairsUnique.push(p);
   }
-  // ordenar por score desc
   pairsUnique.sort((a,b)=> b.score - a.score);
 
-  // resúmenes por listas
   const selUsers = usersFound.length ? usersFound : [];
   const selNames = namesFound.length ? namesFound : [];
 
-  const cargasSel = selUsers.length
-    ? cargasConsideradas.filter(c=> selUsers.includes(c.user))
-    : [];
-  const transfSel = selNames.length
-    ? state.transf.filter(t=> selNames.includes(t.nameCandidate))
-    : [];
+  const cargasSel = selUsers.length ? getCargasConsideradas().filter(c=> selUsers.includes(c.user)) : [];
+  const transfSel = selNames.length ? state.transf.filter(t=> selNames.includes(t.nameCandidate)) : [];
 
   const resumenUsers = selUsers.length ? summarize(cargasSel, "Cargas") : null;
   const resumenNames = selNames.length ? summarize(transfSel, "Transferencias") : null;
 
-  return {
-    pairs: pairsUnique,
-    usersFound: selUsers,
-    namesFound: selNames,
-    resumenUsers,
-    resumenNames,
-    cargasSel,
-    transfSel
-  };
+  return { pairs: pairsUnique, usersFound: selUsers, namesFound: selNames, resumenUsers, resumenNames, cargasSel, transfSel };
 }
-
-// Render de resultados de persona
 function renderAdvPersonResults(R){
   const cont = $("#advResults");
   if (!cont) return;
@@ -807,7 +784,6 @@ function renderAdvPersonResults(R){
     ? `<span class="tiny">Titulares: ${R.namesFound.join(", ")}</span>`
     : `<span class="tiny">Titulares: (sin coincidencias claras)</span>`;
 
-  // tabla pares
   const rowsPairs = (R.pairs && R.pairs.length)
     ? R.pairs.slice(0,50).map(p=>{
         const cargasUser = getCargasConsideradas().filter(c=> c.user===p.user);
@@ -824,7 +800,6 @@ function renderAdvPersonResults(R){
       }).join("")
     : `<tr><td colspan="5" class="tiny">Sin emparejamientos probables. Mostramos coincidencias sueltas debajo.</td></tr>`;
 
-  // Detalle de cargas/transferencias si sólo encontró de un lado
   const cargasRows = (R.cargasSel && R.cargasSel.length)
     ? R.cargasSel.map(c=>`<tr><td>${c.user||"(sin usuario)"}</td><td>${c.date||""} ${c.time||""}</td><td>${moneyFmt(c.amountCents)}</td></tr>`).join("")
     : `<tr><td colspan="3" class="tiny">Sin cargas seleccionadas.</td></tr>`;
@@ -874,11 +849,9 @@ function renderAdvPersonResults(R){
       const u = tr.dataset.user;
       const n = tr.dataset.name;
 
-      // al click: filtra debajo los detalles de ese par
       const cargasUser = getCargasConsideradas().filter(c=> c.user===u);
       const transfName = state.transf.filter(t=> t.nameCandidate===n);
 
-      // abrir modal pequeño con detalle
       const totalU = cargasUser.reduce((s,x)=>s+x.amountCents,0);
       const totalN = transfName.reduce((s,x)=>s+x.amountCents,0);
 
@@ -926,14 +899,20 @@ function exportCSV(){
 
   const totalC = cargasConsideradas.reduce((s,c)=>s+c.amountCents,0);
   const totalB = state.bonifs.reduce((s,b)=>s+(b.amountCents*2),0);
-  const totalT = state.transf.reduce((s,t)=>s+t.amountCents,0);
+  const tele = state.transf.filter(t=>t.source!=="galicia");
+  const gali = state.transf.filter(t=>t.source==="galicia");
+  const totalT_Tele = tele.reduce((s,t)=>s+t.amountCents,0);
+  const totalT_Gal  = gali.reduce((s,t)=>s+t.amountCents,0);
+  const totalT = totalT_Tele + totalT_Gal;
   const totalR = state.retiros.reduce((s,r)=>s+r.amountCents,0);
   const dif = (totalC-totalB)-totalT;
 
   csv += `Resumen${sep}${sep}\n`;
   csv += `Cargas${sep}${(totalC/100).toFixed(2)}\n`;
   csv += `Bonif_x2${sep}${(totalB/100).toFixed(2)}\n`;
-  csv += `Transferencias${sep}${(totalT/100).toFixed(2)}\n`;
+  csv += `Transf_Telepago_RECA${sep}${(totalT_Tele/100).toFixed(2)}\n`;
+  csv += `Transf_Galicia${sep}${(totalT_Gal/100).toFixed(2)}\n`;
+  csv += `Transf_Totales${sep}${(totalT/100).toFixed(2)}\n`;
   csv += `Retiros${sep}-${(totalR/100).toFixed(2)}\n`;
   csv += `Diferencia(C-B)-T${sep}${(dif/100).toFixed(2)}\n\n`;
 
@@ -1004,11 +983,28 @@ function analizar(){
   state.retiros = [];
 
   const {cargas, bonifs} = parseCargas($("#cargasInput").value, state.roundPesos);
-  const transf = parseTransferencias($("#transfInput").value, state.roundPesos);
+  const transfFromText = parseTransferencias($("#transfInput").value, state.roundPesos);
+
+  // Base: Telepago/RECA
+  let mergedTrans = transfFromText.slice();
+
+  // Agregar Galicia si está activado el flag de incluir automáticamente
+  if (INCLUDE_GALICIA_IN_ANALYSIS && GALICIA_BUFFER.length){
+    const galAsTrans = GALICIA_BUFFER.map(it => ({
+      amountCents: state.roundPesos ? Math.round(it.amountCents/100)*100 : it.amountCents,
+      nameCandidate: it.name,
+      date: extractDateDMYToISO(it.date) ? extractDateDMYToISO(it.date) : it.date, // guardamos ISO si es posible
+      time: null,
+      raw: `${it.date} ${it.name} ${it.amountStr}`,
+      ts: null,
+      source: 'galicia'
+    }));
+    mergedTrans.push(...galAsTrans);
+  }
 
   state.cargas = cargas;
   state.bonifs = bonifs;
-  state.transf = transf;
+  state.transf = mergedTrans;
 
   // Emparejar bonificaciones y marcar cargas-bono para EXCLUIR
   state.cargasEmparejadasPorBonif = matchBonif(state.cargas, state.bonifs);
@@ -1044,6 +1040,8 @@ window.addEventListener("DOMContentLoaded", ()=>{
     $("#filterTransfCount").textContent = "0 coincidencias";
     $("#results").classList.add("hidden");
     state = { ...state, cargas:[], bonifs:[], transf:[], retiros:[], cargasEmparejadasPorBonif:new Set(), cmpMonto:[] };
+    GALICIA_BUFFER = [];
+    INCLUDE_GALICIA_IN_ANALYSIS = false;
   });
 
   $("#filterCargas").addEventListener("input", ()=> updateFilterList("#cargasInput","#filterCargas","#filterCargasList","#filterCargasCount"));
@@ -1063,7 +1061,215 @@ window.addEventListener("DOMContentLoaded", ()=>{
 
   const mClose = $("#modalClose"); if (mClose) mClose.addEventListener("click", ()=> $("#modalBackdrop").classList.add("hidden"));
   const mBack  = $("#modalBackdrop"); if (mBack) mBack.addEventListener("click", (ev)=>{ if (ev.target.id==="modalBackdrop") $("#modalBackdrop").classList.add("hidden"); });
+
+  // Inyectar botón Galicia
+  setupGaliciaUI();
 });
+
+/************ Galicia normalizada (botón + modal + parser) ************/
+function setupGaliciaUI(){
+  const actions = document.querySelector(".actions");
+  if (!actions || document.getElementById("btnGalicia")) return;
+  const btn = document.createElement("button");
+  btn.id = "btnGalicia";
+  btn.className = "secondary";
+  btn.textContent = "Ver Galicia normalizada";
+  actions.appendChild(btn);
+  btn.addEventListener("click", openGaliciaModal);
+}
+
+function openGaliciaModal(){
+  const backdrop = $("#modalBackdrop");
+  const title = $("#modalTitle");
+  const body = $("#modalBody");
+  if (!backdrop || !title || !body) return;
+
+  title.textContent = "Galicia (pegar extracto y analizar)";
+  body.innerHTML = `
+    <div class="tiny" style="margin-bottom:8px">
+      Pegá el extracto tal como lo copiás del banco. Se detectan bloques entre comillas y el formato simple con coma en el apellido.
+    </div>
+    <textarea id="galiciaInput" placeholder='Ejemplo:
+16/10/2025\t" TRANSFERENCIA DE TERCEROS
+ LUCIA PAOLA NAVARRETE
+ 27317397149
+ 4530000800013506908785
+ VARIOS
+ 589244045300449034
+ 135069087800
+"\t0,00\t3.000,00
+
+16/10/2025\t" TRANSFERENCIA DE TERCEROS
+ CIGLIUTTI, LEONARDO
+ 20239001964
+ 0270043420052141930018
+ VARIOS
+ 4517XXXXXXXXXX32
+   5214193001
+ A001"\t0,00\t32.000,00
+
+16/10/2025 CIGLIUTTI, LEONARDO 32.000,00'></textarea>
+
+    <div class="actions" style="padding:10px 0 0; gap:8px; flex-wrap:wrap">
+      <button id="btnParseGalicia" class="secondary">Analizar Galicia</button>
+      <button id="btnCopyGalicia" class="subtle secondary" disabled>Copiar listado</button>
+      <button id="btnSendGalicia" class="subtle secondary" disabled>Enviar al comparador</button>
+      <label class="tiny" style="display:flex; align-items:center; gap:6px">
+        <input type="checkbox" id="chkIncludeGalicia" />
+        Incluir automáticamente en el próximo “Analizar”
+      </label>
+    </div>
+
+    <div id="galiciaOut" class="filterList" style="margin-top:10px">
+      <div class="nores">No se detectaron registros de Galicia. Pegá el extracto y presioná “Analizar Galicia”.</div>
+    </div>
+    <div id="galiciaNote" class="note"></div>
+  `;
+
+  const parseBtn = $("#btnParseGalicia");
+  const copyBtn  = $("#btnCopyGalicia");
+  const sendBtn  = $("#btnSendGalicia");
+  const outBox   = $("#galiciaOut");
+  const noteBox  = $("#galiciaNote");
+  const chkInc   = $("#chkIncludeGalicia");
+
+  chkInc.checked = INCLUDE_GALICIA_IN_ANALYSIS;
+
+  function renderGalicia(){
+    const raw = ($("#galiciaInput")?.value || "").trim();
+    GALICIA_BUFFER = parseGaliciaRaw(raw); // [{date,name,amountStr,amountCents}]
+    if (!GALICIA_BUFFER.length){
+      outBox.innerHTML = `<div class="nores">No se detectaron registros de Galicia. Pegá el extracto y presioná “Analizar Galicia”.</div>`;
+      noteBox.textContent = "";
+      copyBtn.disabled = true;
+      sendBtn.disabled = true;
+      return;
+    }
+    const list = GALICIA_BUFFER.map(it => `${it.date} - ${it.name} - ${it.amountStr}`).join("\n");
+    outBox.innerHTML = list.split("\n").map(l => `<div>${l}</div>`).join("");
+    noteBox.innerHTML = `Registros detectados: <strong>${GALICIA_BUFFER.length}</strong>. Se mostrarán por aparte en el Resumen <span style="color:#ffa726">(naranja)</span> y se incluirán en la comparación.`;
+    copyBtn.disabled = false;
+    sendBtn.disabled = false;
+    copyBtn.dataset.clip = list;
+  }
+
+  parseBtn.addEventListener("click", renderGalicia);
+  copyBtn.addEventListener("click", ()=> {
+    const txt = copyBtn.dataset.clip || "";
+    if (!txt) return;
+    navigator.clipboard.writeText(txt).then(()=>{
+      copyBtn.textContent = "¡Copiado!";
+      setTimeout(()=> copyBtn.textContent = "Copiar listado", 1200);
+    });
+  });
+
+  // Enviar al comparador = volcar al textarea de transferencias (con marcador #GALICIA)
+  sendBtn.addEventListener("click", ()=>{
+    if (!GALICIA_BUFFER.length) return;
+    const linesToAppend = GALICIA_BUFFER.map(it => `${it.date} ${it.name} ${it.amountStr} #GALICIA`).join("\n");
+    const t = $("#transfInput");
+    t.value = (t.value ? (t.value.trim()+"\n") : "") + linesToAppend + "\n";
+    // Evitar duplicar desde buffer si ya los pegaste
+    INCLUDE_GALICIA_IN_ANALYSIS = false;
+    const chk = $("#chkIncludeGalicia"); if (chk) chk.checked = false;
+
+    sendBtn.textContent = "¡Enviado!";
+    setTimeout(()=> sendBtn.textContent = "Enviar al comparador", 1200);
+  });
+
+  chkInc.addEventListener("change", (e)=>{
+    INCLUDE_GALICIA_IN_ANALYSIS = !!e.target.checked;
+  });
+
+  backdrop.classList.remove("hidden");
+}
+
+/* ---------- Parser Galicia (bloques + simple) ---------- */
+function parseGaliciaRaw(raw){
+  if (!raw) return [];
+  const L = lines(raw);
+  const isDate = (s)=> /^\s*\d{2}\/\d{2}\/\d{4}\b/.test(s);
+
+  // agrupar por bloques que comienzan con fecha
+  const blocks = [];
+  let cur = [];
+  for (let i=0;i<L.length;i++){
+    const ln = L[i];
+    if (isDate(ln)){
+      if (cur.length) blocks.push(cur.join("\n"));
+      cur = [ln];
+    } else {
+      if (!cur.length) continue;
+      cur.push(ln);
+    }
+  }
+  if (cur.length) blocks.push(cur.join("\n"));
+
+  const items = [];
+  for (const block of blocks){
+    // formato simple: "DD/MM/YYYY TITULAR Monto"
+    const simple = block.match(/^\s*(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/m);
+    if (simple){
+      const date = simple[1];
+      const name = cleanGaliciaName(simple[2]);
+      const amountStr = normalizeArsAmount(simple[3]);
+      const amountCents = parseArsToCents(amountStr);
+      if (amountCents>0) items.push({date, name, amountStr, amountCents});
+      continue;
+    }
+
+    // formato con comillas (bloque RECA)
+    const dateMatch = block.match(/^\s*(\d{2}\/\d{2}\/\d{4})\b/);
+    const date = dateMatch ? dateMatch[1] : "";
+
+    const linesInBlock = block.split(/\r?\n/);
+    const nameCandidates = [];
+    let insideQuote = false;
+    for (const ln of linesInBlock){
+      if (ln.includes(`"`)) insideQuote = !insideQuote;
+      if (!insideQuote) continue;
+      const t = ln.trim();
+      if (!t) continue;
+      if (/TRANSFERENCIA DE TERCEROS/i.test(t)) continue;
+      if (/VARIOS/i.test(t)) continue;
+      if (/^[\d\sXx]+$/.test(t)) continue;
+      if (/^\d{4,}$/.test(t)) continue;
+      if (/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(t)) nameCandidates.push(t);
+    }
+    let name = "";
+    const commaFirst = nameCandidates.find(s => /,/.test(s));
+    if (commaFirst) name = commaFirst;
+    else name = nameCandidates.find(s => s.split(/\s+/).length>=2) || nameCandidates[0] || "";
+    name = cleanGaliciaName(name);
+
+    const moneyTokens = block.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [];
+    let amountStr = "";
+    let amountCents = null;
+    for (let i = moneyTokens.length - 1; i >= 0; i--){
+      const tok = normalizeArsAmount(moneyTokens[i]);
+      const cents = parseArsToCents(tok);
+      if (cents && cents > 0){ amountStr = tok; amountCents = cents; break; }
+    }
+    if (date && name && amountCents!=null && amountCents>0){
+      items.push({date, name, amountStr, amountCents});
+    }
+  }
+  return items;
+}
+
+function normalizeArsAmount(s){
+  let t = (s||"").toString().trim();
+  if (/^\d+(?:\.\d{2})$/.test(t)) t = t.replace(".", ",");
+  t = t.replace(/[^\d.,]/g,"");
+  return t;
+}
+function cleanGaliciaName(s){
+  return (s||"")
+    .replace(/^"+|"+$/g,"")
+    .replace(/\s+/g," ")
+    .trim()
+    .toUpperCase();
+}
 
 
 
